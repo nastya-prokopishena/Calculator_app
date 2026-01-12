@@ -343,7 +343,234 @@ fun SimpleCalculatorScreen(onBack: () -> Unit) {
 =================================================== */
 @Composable
 fun AdvancedCalculatorScreen(onBack: () -> Unit) {
-    SimpleCalculatorScreen(onBack)
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isTablet = configuration.smallestScreenWidthDp >= 600
+
+    var display by rememberSaveable { mutableStateOf("0") }
+    var storedValue by rememberSaveable { mutableStateOf<Double?>(null) }
+    var operator by rememberSaveable { mutableStateOf<String?>(null) }
+    var isNewInput by rememberSaveable { mutableStateOf(true) }
+
+    fun calculateBinary(second: Double): Double {
+        return try {
+            when (operator) {
+                "+" -> storedValue!! + second
+                "-" -> storedValue!! - second
+                "×" -> storedValue!! * second
+                "÷" -> if (second != 0.0) storedValue!! / second else throw ArithmeticException("Division by zero")
+                "%" -> storedValue!! % second
+                "^" -> storedValue!!.pow(second)
+                else -> second
+            }
+        } catch (e: Exception) {
+            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            storedValue ?: 0.0
+        }
+    }
+
+    fun onNumberClick(number: String) {
+        display = if (isNewInput) {
+            isNewInput = false
+            number
+        } else {
+            if (display == "0") number else display + number
+        }
+    }
+
+    fun onDotClick() {
+        if (isNewInput) {
+            display = "0."
+            isNewInput = false
+        } else if (!display.contains(".")) display += "."
+    }
+
+    fun onSignChange() {
+        if (display != "0") display = if (display.startsWith("-")) display.removePrefix("-") else "-$display"
+    }
+
+    fun onOperatorClick(op: String) {
+        val current = display.toDoubleOrNull()
+        if (current == null) {
+            Toast.makeText(context, "Invalid input", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (storedValue != null && operator != null && !isNewInput) {
+            val result = calculateBinary(current)
+            storedValue = result
+            display = result.toString().removeSuffix(".0")
+        } else storedValue = current
+        operator = op
+        isNewInput = true
+    }
+
+    fun onEqualsClick() {
+        val current = display.toDoubleOrNull()
+        if (current == null) {
+            Toast.makeText(context, "Invalid input", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (storedValue != null && operator != null) {
+            val result = calculateBinary(current)
+            display = result.toString().removeSuffix(".0")
+            storedValue = null
+            operator = null
+            isNewInput = true
+        }
+    }
+
+    fun onUnary(op: String) {
+        val value = display.toDoubleOrNull()
+        if (value == null) {
+            Toast.makeText(context, "Invalid input", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val result = try {
+            when (op) {
+                "x²" -> value * value
+                "√x" -> if (value >= 0) sqrt(value) else throw ArithmeticException("Invalid input for sqrt")
+                "sin" -> sin(Math.toRadians(value))
+                "cos" -> cos(Math.toRadians(value))
+                "tan" -> tan(Math.toRadians(value))
+                "ln" -> if (value > 0) ln(value) else throw ArithmeticException("Invalid input for ln")
+                "log" -> if (value > 0) log10(value) else throw ArithmeticException("Invalid input for log")
+                else -> value
+            }
+        } catch (e: Exception) {
+            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            value
+        }
+        display = result.toString().removeSuffix(".0")
+        isNewInput = true
+    }
+
+    fun onClear() {
+        display = "0"
+        storedValue = null
+        operator = null
+        isNewInput = true
+    }
+
+    // Оптимізація для різних пристроїв
+    val displayFontSize = when {
+        isTablet -> if (isLandscape) 48.sp else 56.sp
+        else -> if (isLandscape) 28.sp else 42.sp
+    }
+
+    val buttonFontSize = when {
+        isTablet -> if (isLandscape) 20.sp else 22.sp
+        else -> if (isLandscape) 16.sp else 20.sp
+    }
+
+    val buttonHeight = when {
+        isTablet -> if (isLandscape) 70.dp else 80.dp
+        else -> if (isLandscape) 48.dp else 60.dp
+    }
+
+    val paddingValue = when {
+        isTablet -> if (isLandscape) 20.dp else 24.dp
+        else -> if (isLandscape) 8.dp else 16.dp
+    }
+
+    val spacingValue = when {
+        isTablet -> if (isLandscape) 8.dp else 10.dp
+        else -> if (isLandscape) 4.dp else 8.dp
+    }
+
+    // Розкладка кнопок для планшетів та телефонів
+    val buttons = when {
+        isTablet && isLandscape -> {
+            // Планшет в ландшафтному режимі - 4 рядки по 7 кнопок
+            listOf(
+                listOf("sin", "cos", "tan", "√x", "x²", "ln", "log"),
+                listOf("7", "8", "9", "÷", "C", "±", "."),
+                listOf("4", "5", "6", "×", "+", "-", "^"),
+                listOf("1", "2", "3", "%", "0", "=", "Back")
+            )
+        }
+        isTablet -> {
+            // Планшет в портретному режимі
+            listOf(
+                listOf("sin", "cos", "tan", "√x", "x²", "ln", "log"),
+                listOf("7", "8", "9", "÷", "C", "±", "."),
+                listOf("4", "5", "6", "×", "+", "-", "^"),
+                listOf("1", "2", "3", "%", "0", "=", "Back")
+            )
+        }
+        isLandscape -> {
+            // Телефон в ландшафтному режимі
+            listOf(
+                listOf("sin", "cos", "tan", "√x", "x²", "ln", "log"),
+                listOf("7", "8", "9", "÷", "C", "±", "."),
+                listOf("4", "5", "6", "×", "+", "-", "^"),
+                listOf("1", "2", "3", "%", "0", "=", "Back")
+            )
+        }
+        else -> {
+            // Телефон в портретному режимі
+            listOf(
+                listOf("sin", "cos", "tan", "√x"),
+                listOf("x²", "ln", "log", "C"),
+                listOf("7", "8", "9", "÷"),
+                listOf("4", "5", "6", "×"),
+                listOf("1", "2", "3", "-"),
+                listOf("0", ".", "±", "+"),
+                listOf("^", "=", "", "")
+            )
+        }
+    }
+
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .padding(paddingValue)) {
+        AutoResizeDisplay(
+            text = display,
+            maxFontSize = displayFontSize,
+            modifier = Modifier
+                .weight(0.5f)
+                .padding(paddingValue)
+        )
+        Spacer(modifier = Modifier.height(paddingValue))
+
+        for (row in buttons) {
+            Row(modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(spacingValue)) {
+                for (btn in row) {
+                    if (btn.isNotEmpty()) {
+                        Button(
+                            onClick = {
+                                when (btn) {
+                                    "C" -> onClear()
+                                    "=" -> onEqualsClick()
+                                    "+", "-", "×", "÷", "%", "^" -> onOperatorClick(btn)
+                                    "sin", "cos", "tan", "x²", "√x", "ln", "log" -> onUnary(btn)
+                                    "±" -> onSignChange()
+                                    "." -> onDotClick()
+                                    "Back" -> onBack()
+                                    else -> onNumberClick(btn)
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(buttonHeight)
+                        ) { Text(btn, fontSize = buttonFontSize) }
+                    } else Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+            Spacer(modifier = Modifier.height(spacingValue))
+        }
+
+        // Для телефону в портретному режимі - кнопку Back окремо
+        if (!isLandscape && !isTablet) {
+            Spacer(modifier = Modifier.height(paddingValue))
+            Button(onClick = onBack, modifier = Modifier
+                .fillMaxWidth()
+                .height(buttonHeight)) {
+                Text("Back", fontSize = buttonFontSize)
+            }
+        }
+    }
 }
 
 /* ===================================================
@@ -356,7 +583,7 @@ fun AboutScreen(onBack: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Calculator App\nAuthor: Anastasiia Prokopishena")
+        Text("Calculator App\nAuthor: Anastasiia Prokopishena\nStudent ID number: 905588")
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onBack) { Text("Back") }
     }
